@@ -1,0 +1,1154 @@
+---
+title: "Singapore Employment & Education Data Visualization"
+subtitle: "Does being more educated mean you're more likely to be employed, and does gender make a difference?"
+author: "AAI1001 Team 32 · Adheesh · Shannon · Thiha Thein · Jinghong · Zafri"
+date: 2026-03-13
+date-format: "MMMM YYYY"
+engine: knitr
+format:
+  revealjs:
+    self-contained: true
+    embed-resources: true
+    theme: [default, custom.scss]
+    width: 1600
+    height: 900
+    margin: 0.05
+    min-scale: 0.2
+    max-scale: 2.0
+    slide-number: c/t
+    scrollable: true
+    navigation-mode: linear
+    controls: true
+    progress: true
+    transition: slide
+    background-transition: fade
+    incremental: false
+    preview-links: false
+    footer: "AAI1001 Team 32 · MOM Comprehensive Labour Force Survey 2024"
+    html-table-processing: none
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(kableExtra)
+
+# ── Load raw data ──────────────────────────────────────────────────────────────
+b1_raw <- read_excel(
+  "data/LFR2024_SectionB_EmploymentRate.xlsx",
+  sheet = "B1", skip = 6, col_names = FALSE
+)
+g4_raw <- read_excel(
+  "data/LFR2024_SectionG_MedianAge_DemographicProfile.xlsx",
+  sheet = "G4", skip = 6, col_names = FALSE
+)
+
+# ── Parse B1: Employment Rates ─────────────────────────────────────────────────
+target_ages <- c("25 - 29","30 - 34","35 - 39","40 - 44",
+                 "45 - 49","50 - 54","55 - 59","60 - 64","65 - 69","70 & Over")
+
+parse_b1 <- function(raw) {
+  colnames(raw) <- c("sex", "age", as.character(2014:2024))
+  raw <- raw |> filter(!is.na(age))
+  current_sex <- NA
+  rows <- list()
+  for (i in seq_len(nrow(raw))) {
+    r <- raw[i, ]
+    if (!is.na(r$sex) && r$sex %in% c("Total","Male","Female"))
+      current_sex <- r$sex
+    if (!is.na(r$age) && trimws(r$age) %in% target_ages) {
+      rows[[length(rows) + 1]] <- data.frame(
+        sex           = current_sex,
+        age_group     = trimws(r$age),
+        emp_rate_2024 = as.numeric(r[["2024"]]),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  bind_rows(rows)
+}
+
+age_recode <- c(
+  "25 - 29" = "25–29", "30 - 34" = "30–34", "35 - 39" = "35–39",
+  "40 - 44" = "40–44", "45 - 49" = "45–49", "50 - 54" = "50–54",
+  "55 - 59" = "55–59", "60 - 64" = "60–64", "65 - 69" = "65–69",
+  "70 & Over" = "70+"
+)
+
+emp_df <- parse_b1(b1_raw) |>
+  filter(sex %in% c("Male","Female")) |>
+  mutate(age_group = recode(age_group, !!!age_recode))
+
+# ── Parse G4: Education Counts ─────────────────────────────────────────────────
+parse_g4 <- function(raw) {
+  colnames(raw) <- c("sex","age","total","below_sec","secondary",
+                     "post_sec","diploma","degree")
+  current_sex <- NA
+  rows <- list()
+  for (i in seq_len(nrow(raw))) {
+    r <- raw[i, ]
+    if (!is.na(r$sex) && r$sex %in% c("Total","Male","Female"))
+      current_sex <- r$sex
+    if (!is.na(r$age) && trimws(r$age) %in% target_ages) {
+      rows[[length(rows) + 1]] <- data.frame(
+        sex       = current_sex,
+        age_group = trimws(r$age),
+        below_sec = suppressWarnings(as.numeric(r$below_sec)),
+        secondary = suppressWarnings(as.numeric(r$secondary)),
+        post_sec  = suppressWarnings(as.numeric(r$post_sec)),
+        diploma   = suppressWarnings(as.numeric(r$diploma)),
+        degree    = suppressWarnings(as.numeric(r$degree)),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  bind_rows(rows)
+}
+
+edu_df <- parse_g4(g4_raw) |>
+  filter(sex %in% c("Male","Female")) |>
+  mutate(age_group = recode(age_group, !!!age_recode)) |>
+  replace_na(list(below_sec=0, secondary=0, post_sec=0, diploma=0, degree=0))
+
+# ── Build employment_data ──────────────────────────────────────────────────────
+age_levels <- c("25–29","30–34","35–39","40–44","45–49",
+                "50–54","55–59","60–64","65–69","70+")
+
+edu_long <- edu_df |>
+  mutate(edu_total = below_sec + secondary + post_sec + diploma + degree) |>
+  mutate(
+    `Below Secondary`               = below_sec / edu_total * 100,
+    `Secondary`                     = secondary  / edu_total * 100,
+    `Post-Secondary (Non-Tertiary)` = post_sec   / edu_total * 100,
+    `Diploma & Prof. Qual.`         = diploma    / edu_total * 100,
+    `Degree`                        = degree     / edu_total * 100
+  ) |>
+  select(sex, age_group, `Below Secondary`, Secondary,
+         `Post-Secondary (Non-Tertiary)`, `Diploma & Prof. Qual.`, Degree)
+
+employment_data <- emp_df |>
+  left_join(edu_long, by = c("sex","age_group")) |>
+  mutate(age_group = factor(age_group, levels = age_levels))
+
+# ── Wong (2011) colour-blind safe palette ──────────────────────────────────────
+wong <- c(
+  "Below Secondary"               = "#E69F00",
+  "Secondary"                     = "#56B4E9",
+  "Post-Secondary (Non-Tertiary)" = "#009E73",
+  "Diploma & Prof. Qual."         = "#0072B2",
+  "Degree"                        = "#CC79A7"
+)
+
+# ── Shared ggplot light theme ──────────────────────────────────────────────────
+light_theme <- function(base = 12) {
+  theme_minimal(base_size = base) +
+    theme(
+      plot.background   = element_rect(fill = "white", colour = NA),
+      panel.background  = element_rect(fill = "#f8fafc", colour = NA),
+      legend.background = element_rect(fill = "white", colour = NA),
+      legend.key        = element_rect(fill = "white", colour = NA),
+      text              = element_text(colour = "#1e293b", family = "sans"),
+      axis.text         = element_text(colour = "#64748b", size = base - 1),
+      axis.title        = element_text(colour = "#334155", size = base),
+      panel.grid.major  = element_line(colour = "#e2e8f0", linewidth = 0.4),
+      panel.grid.minor  = element_blank(),
+      legend.text       = element_text(size = base - 1, colour = "#334155"),
+      plot.title        = element_text(colour = "#1e3a8a", size = base + 2,
+                                       face = "bold", margin = margin(b = 4)),
+      plot.subtitle     = element_text(colour = "#64748b", size = base - 1,
+                                       margin = margin(b = 8)),
+      plot.caption      = element_text(colour = "#94a3b8", size = base - 2,
+                                       hjust = 0),
+      plot.margin       = margin(8, 8, 8, 8)
+    )
+}
+```
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 1</div>
+  <div class="s-stat__num">Original Data Visualization</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">Our Chosen Chart &amp; Its Story</div>
+</div>
+```
+
+---
+
+## Why We Picked This Chart {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="52%"}
+
+Singapore's workforce has quietly undergone one of the fastest educational transformations in the world. Over the past 30 years, the share of degree-holders in the workforce has more than tripled.
+
+But that success story comes with a question mark: **does being more educated actually mean you're more likely to be employed?** And critically — **does the answer differ for women?**
+
+In September 2025, Singapore consultancy FYT Consultants published a chart attempting to tell this story. It combined data on the educational makeup of Singapore's resident population across age groups and genders.
+
+We found the chart thought-provoking — but we also found it hard to actually *read*. It buried the employment angle entirely and made gender comparison needlessly difficult.
+
+**Our goal:** rebuild it around the questions that actually matter for policy — using official MOM 2024 data — and make those answers visible at a glance.
+
+:::
+
+::: {.column width="48%"}
+
+```{=html}
+<div class="s-card s-card--navy" style="padding:20px 24px;">
+  <div class="s-section-label">Three questions this project answers</div>
+
+  <div class="s-card__title" style="margin-bottom:10px;">
+    <div class="s-badge s-badge--navy">1</div>
+    <div class="s-card__body">How does educational attainment among <strong>employed</strong> Singaporeans vary across age groups — and does it tell a different story from population data alone?</div>
+  </div>
+
+  <div class="s-card__title" style="margin-bottom:10px;">
+    <div class="s-badge s-badge--navy">2</div>
+    <div class="s-card__body">Are there meaningful <strong>gender gaps</strong> in the education–employment relationship that aggregate statistics conceal?</div>
+  </div>
+
+  <div class="s-card__title">
+    <div class="s-badge s-badge--navy">3</div>
+    <div class="s-card__body">Does the data support or challenge the narrative that <strong>young, highly-educated workers</strong> are having a harder time finding jobs?</div>
+  </div>
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## The Original Chart {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="36%"}
+
+```{=html}
+<div style="text-align:center; padding-top:4px;">
+  <img
+    src="https://static.wixstatic.com/media/420198_c8e3f9f7fe3141eca81e18827ad2472d~mv2.png/v1/fill/w_705,h_1004,al_c,q_90,enc_avif,quality_auto/420198_c8e3f9f7fe3141eca81e18827ad2472d~mv2.png"
+    alt="Original: Population by Education and Gender Over Time – 2024"
+    style="max-height:680px; width:auto; border-radius:8px; display:block; margin:0 auto; box-shadow:0 2px 12px rgba(0,0,0,0.08);"
+  />
+  <p style="color:#94a3b8; font-size:0.7em; margin-top:6px; text-align:center;">
+    "Population by Education and Gender Over Time – 2024"<br>
+    FYT Consultants, Sep 2025 · Source: Singapore Dept of Statistics
+  </p>
+</div>
+```
+
+:::
+
+::: {.column width="64%"}
+
+**What the chart is showing**
+
+Singapore residents aged 25 and above, split by age group (9 bands), gender, and highest educational attainment (5 levels).
+
+| Panel | What it shows |
+|:------|:-------------|
+| **Top** (%) | Share of each education level within a given age–gender group |
+| **Bottom** (count) | Absolute number of residents per age–gender group |
+
+**Five education levels**, colour-coded:
+
+- University · Diploma & Professional Qualification · Post-Secondary (Non-Tertiary) · Secondary · Below Secondary
+
+<br>
+
+**The story it's trying to tell:** Singapore's younger generations are far more educated than older ones — and that shift is visible in the data. The chart captures a genuine generational transformation.
+
+```{=html}
+<div class="s-alert s-alert--orange">
+  <div class="s-alert__title">⚠ What it's missing</div>
+  <div class="s-alert__body">The chart shows who <em>lives</em> in Singapore — not who is <em>employed</em>. It also makes gender comparison genuinely difficult, and provides no way to read exact figures.</div>
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 2</div>
+  <div class="s-stat__num">Critiques &amp; Proposed Improvements</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">Original Visualization's Strengths & Weaknesses, Our Plan for Improvements</div>
+</div>
+```
+
+---
+
+## What Works, and What Doesn't {.smaller}
+
+<hr>
+
+```{=html}
+<div class="s-grid-2">
+
+  <!-- STRENGTHS -->
+  <div>
+    <div class="s-card__title">
+      <span>✅</span>
+      <span style="font-weight:700; color:#15803d; font-size:0.9em;">Four things it gets right</span>
+    </div>
+    <div class="s-stack">
+
+      <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#15803d;">S1</span>
+        <div>
+          <div class="s-card__body" style="font-weight:700; color:#14532d; margin-bottom:4px;">Pairing two panels prevents misreads</div>
+          <div class="s-card__body">Showing both the % composition and the raw counts side by side stops you from drawing the wrong conclusion — without the count panel, the enormous 65+ cohort would look just the same as any other age group.</div>
+        </div>
+      </div>
+
+      <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#15803d;">S2</span>
+        <div>
+          <div class="s-card__body" style="font-weight:700; color:#14532d; margin-bottom:4px;">The colour scheme tells a story on its own</div>
+          <div class="s-card__body">Darker, cooler tones signal higher education; warmer tones signal lower. It's the kind of colour logic you can figure out intuitively without reading the legend first.</div>
+        </div>
+      </div>
+
+      <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#15803d;">S3</span>
+        <div>
+          <div class="s-card__body" style="font-weight:700; color:#14532d; margin-bottom:4px;">Three dimensions in one place</div>
+          <div class="s-card__body">Age group, gender, and education are all visible at once — no need to flip between charts or switch views to get the full picture.</div>
+        </div>
+      </div>
+
+      <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#15803d;">S4</span>
+        <div>
+          <div class="s-card__body" style="font-weight:700; color:#14532d; margin-bottom:4px;">Clear legend and helpful subtitle</div>
+          <div class="s-card__body">For a chart this complex, having a well-labelled legend and a subtitle that explains what you're looking at goes a long way toward making it approachable.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- WEAKNESSES -->
+  <div>
+    <div class="s-card__title">
+      <span>❌</span>
+      <span style="font-weight:700; color:#b91c1c; font-size:0.9em;">Six problems that limit its usefulness</span>
+    </div>
+    <div class="s-stack">
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W1</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">18 rotated labels</strong> — you have to trace every bar upward to figure out which age group it belongs to.</div>
+      </div>
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W2</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">No visual link between the two panels</strong> — connecting a proportion to its raw count requires you to mentally align bars across a gap.</div>
+      </div>
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W3</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">Floating stacked segments</strong> — comparing the same education level across different age groups is nearly impossible when the starting point keeps shifting.</div>
+      </div>
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W4</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">The 65+ bar dominates the count panel</strong> — it's so much larger than every other bar that the rest get compressed into near-invisibility.</div>
+      </div>
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W5</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">No numbers anywhere</strong> — it's a static image with no labels or tooltips, so there's no way to read any exact figure.</div>
+      </div>
+
+      <div class="s-card s-card--red" style="padding:10px 14px; border-radius:8px; border-left:none;">
+        <span class="s-badge s-badge--label" style="background:#b91c1c;">W6</span>
+        <div class="s-card__body"><strong style="color:#7f1d1d;">Colour accessibility problem</strong> — the light blue and light green segments look nearly identical for anyone with colour-vision deficiency.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+```
+
+---
+
+## How We Redesigned It {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="60%"}
+
+| Fix | Problem solved | What we did |
+|:----|:--------------|:------------|
+| **I1** | W1 — unreadable labels | Butterfly layout: age groups become rows, with a clean central spine instead of 18 rotated labels |
+| **I2** | W2, W3 — disconnected panels | A single bar encodes both dimensions: *width* = employment rate, *fill* = education mix |
+| **I3** | W3 — floating baselines | Degree-holders always stack closest to the spine, giving a consistent reference point for every row |
+| **I4** | W4 — 65+ distortion | Switch from raw counts to employment rate (%) — no cohort can dominate the scale |
+| **I5** | W5 — no readable figures | Employment rate labels printed at the end of every bar |
+| **I6** | W6 — colour accessibility | Wong (2011) palette, designed to be distinguishable with all forms of colour-vision deficiency |
+
+:::
+
+::: {.column width="40%"}
+
+```{=html}
+<div class="s-card s-card--navy">
+  <div class="s-info__title">What we kept from the original</div>
+  <div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:8px;">
+    <span style="font-size:1em;">↔</span>
+    <span class="s-step__text">Gender comparison stays front and centre — the butterfly mirror makes it even clearer than before</span>
+  </div>
+  <div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:8px;">
+    <span style="font-size:1em;">🎨</span>
+    <span class="s-step__text">One consistent colour per education level throughout</span>
+  </div>
+  <div style="display:flex; gap:10px; align-items:flex-start;">
+    <span style="font-size:1em;">📊</span>
+    <span class="s-step__text">All four dimensions readable from a single view — no need for a second panel</span>
+  </div>
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 3</div>
+  <div class="s-stat__num">Data Selection &amp; Sources</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">Datasets We Chose &amp; Their Contribution to the Improved Visualization</div>
+</div>
+```
+
+---
+
+## Data Sources {.smaller}
+
+<hr>
+
+We used two official tables from the **Ministry of Manpower (MOM) Comprehensive Labour Force Survey 2024**, published at [stats.mom.gov.sg](https://stats.mom.gov.sg).
+
+```{r}
+#| echo: false
+tibble::tribble(
+  ~Table, ~`Full name`, ~Unit, ~`What we use it for`,
+  "B1",
+  "Resident Employment Rate by Age and Sex, 2014–2024",
+  "Per cent (%)",
+  "Employment rate for each age band × sex — becomes the bar width in the butterfly chart",
+  "G4",
+  "Employed Residents by Highest Qualification Attained, Age and Sex, 2024",
+  "Thousands",
+  "Count of employed residents by education level, age, and sex — converted to % shares for the butterfly bar fill"
+) |>
+  knitr::kable(format = "html") |>
+  kableExtra::kable_styling(font_size = 15, full_width = TRUE,
+    bootstrap_options = c("striped","hover"))
+```
+
+<br>
+
+:::: {.columns}
+
+::: {.column width="33%"}
+```{=html}
+<div class="s-info">
+  <div class="s-info__title">Publisher</div>
+  <div class="s-card__body">Manpower Research &amp; Statistics Department, Ministry of Manpower, Singapore</div>
+</div>
+```
+:::
+
+::: {.column width="33%"}
+```{=html}
+<div class="s-info">
+  <div class="s-info__title">Year</div>
+  <div class="s-card__body">2024 only. Both tables use the same reference year so comparisons are consistent.</div>
+</div>
+```
+:::
+
+::: {.column width="34%"}
+```{=html}
+<div class="s-info">
+  <div class="s-info__title">Why just 2024?</div>
+  <div class="s-card__body">Our chart encodes four dimensions at once. Adding a time axis would require animation or small-multiples — out of scope here.</div>
+</div>
+```
+:::
+
+::::
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 4</div>
+  <div class="s-stat__num">Data Engineering Workflow</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">From Raw Excel Files to a Clean, Visualization-Ready Table</div>
+</div>
+```
+
+---
+
+## How We Cleaned the Data {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="42%"}
+
+Both Excel files have awkward multi-row headers and merged cells that need careful parsing before anything useful can happen.
+
+**Step 1 — Load, skip the messy headers**  
+`read_excel(skip = 6)` drops the first 6 rows, landing us at the first data row.
+
+**Step 2 — Recover the gender label**  
+The files use `"Male"` and `"Female"` as section headers, not column values. We walk row-by-row, forward-filling the label down to the age-band rows beneath.
+
+**Step 3 — Filter to the 10 age bands we want**  
+25–29 through 70+. We drop the aggregate rows (e.g. "25–64", "65 & Over").
+
+**Step 4 — Coerce to numeric**  
+Some cells contain `"-"` instead of zero. We replace those and convert everything to `numeric`.
+
+**Step 5 — Compute education shares (G4)**  
+Each education level ÷ row total × 100. This gives the % within each age × sex cell.
+
+**Step 6 — Join the two tables**  
+`left_join` on `sex × age_group` → one clean table: **`employment_data`** (20 rows × 8 columns).
+
+:::
+
+::: {.column width="58%"}
+
+```{r}
+#| echo: true
+#| eval: false
+
+# Step 1 — Load, skip merged headers
+b1_raw <- read_excel("data/LFR2024_SectionB_EmploymentRate.xlsx",
+                     sheet = "B1", skip = 6, col_names = FALSE)
+g4_raw <- read_excel("data/LFR2024_SectionG_MedianAge_DemographicProfile.xlsx",
+                     sheet = "G4", skip = 6, col_names = FALSE)
+
+# Steps 2–4 — Parse B1: forward-fill gender label, filter, coerce
+emp_df <- parse_b1(b1_raw) |>
+  filter(sex %in% c("Male", "Female")) |>
+  mutate(age_group = recode(age_group, !!!age_recode))
+
+# Step 5 — Compute education shares from G4
+edu_long <- parse_g4(g4_raw) |>
+  filter(sex %in% c("Male", "Female")) |>
+  replace_na(list(below_sec=0, secondary=0,
+                  post_sec=0, diploma=0, degree=0)) |>
+  mutate(
+    edu_total = below_sec + secondary + post_sec + diploma + degree,
+    `Below Secondary`               = below_sec / edu_total * 100,
+    `Secondary`                     = secondary  / edu_total * 100,
+    `Post-Secondary (Non-Tertiary)` = post_sec   / edu_total * 100,
+    `Diploma & Prof. Qual.`         = diploma    / edu_total * 100,
+    `Degree`                        = degree     / edu_total * 100
+  )
+
+# Step 6 — Join → employment_data (20 rows × 8 cols)
+employment_data <- emp_df |>
+  left_join(edu_long, by = c("sex", "age_group"))
+```
+
+:::
+
+::::
+
+---
+
+## The Clean Data — `employment_data` {.smaller}
+
+<hr>
+
+```{r}
+#| echo: false
+employment_data |>
+  head(10) |>
+  mutate(across(where(is.numeric), \(x) round(x, 1))) |>
+  knitr::kable(
+    format = "html",
+    col.names = c("Sex","Age group","Emp. rate (%)","Below Sec. (%)","Secondary (%)",
+                  "Post-Sec. (%)","Diploma (%)","Degree (%)")
+  ) |>
+  kableExtra::kable_styling(font_size = 16, full_width = TRUE,
+    bootstrap_options = c("striped","hover")) |>
+  kableExtra::scroll_box(width = "100%", height = "428px")
+```
+
+<br>
+
+```{=html}
+<div class="s-alert" style="background:#eff6ff; border-left:4px solid #2563eb; padding:11px 16px; margin-top:12px;">
+  <span class="s-step__text"><strong style="color:#1e3a8a;">20 rows total</strong> — 10 age bands × 2 sexes. Employment rate from Table B1. The five education share columns from Table G4 always sum to 100% within each row.</span>
+</div>
+
+<div class="s-grid-3">
+  <div class="s-card s-card--blue" style="padding:11px 14px; border-radius:8px;">
+    <div class="s-info__title">Table dimensions</div>
+    <div class="s-info__body">20 rows · 8 columns<br>10 age bands × 2 sexes</div>
+  </div>
+  <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:4px solid #16a34a;">
+    <div class="s-info__title">Education shares</div>
+    <div class="s-info__body">5 education columns from Table G4<br>always sum to 100% per row</div>
+  </div>
+  <div class="s-card s-card--amber" style="padding:11px 14px; border-radius:8px;">
+    <div class="s-info__title">Reproducibility</div>
+    <div class="s-info__body">Fully documented in code — anyone with the raw Excel files can reproduce this table exactly</div>
+  </div>
+</div>
+```
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 5</div>
+  <div class="s-stat__num">Improved Visualization</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">Our Proposed Redesign: Butterfly Chart</div>
+</div>
+```
+
+---
+
+## The Improved Chart {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="68%"}
+
+```{r}
+#| label: butterfly-static
+#| echo: false
+#| fig-width: 9.5
+#| fig-height: 6.4
+#| fig-align: center
+
+edu_inner_first <- c(
+  "Degree",
+  "Diploma & Prof. Qual.",
+  "Post-Secondary (Non-Tertiary)",
+  "Secondary",
+  "Below Secondary"
+)
+
+butterfly_df <- employment_data |>
+  pivot_longer(
+    cols      = c(`Below Secondary`, Secondary,
+                  `Post-Secondary (Non-Tertiary)`, `Diploma & Prof. Qual.`, Degree),
+    names_to  = "education",
+    values_to = "edu_share"
+  ) |>
+  mutate(
+    education = factor(education, levels = edu_inner_first),
+    seg_width = emp_rate_2024 * edu_share / 100,
+    seg_width = if_else(sex == "Male", -seg_width, seg_width),
+    age_num   = as.numeric(age_group)
+  ) |>
+  arrange(sex, age_group, education) |>
+  group_by(sex, age_group) |>
+  mutate(
+    x_end   = cumsum(seg_width),
+    x_start = x_end - seg_width
+  ) |>
+  ungroup()
+
+emp_labels <- employment_data |>
+  mutate(
+    age_num  = as.numeric(age_group),
+    x_pos    = if_else(sex == "Male", -emp_rate_2024, emp_rate_2024),
+    hjust    = if_else(sex == "Male", 1.15, -0.15),
+    label    = paste0(emp_rate_2024, "%"),
+    lbl_col  = if_else(sex == "Male", "#0072B2", "#CC79A7")
+  )
+
+ref_lines <- c(-75, -50, -25, 25, 50, 75)
+
+ggplot() +
+  geom_vline(xintercept = ref_lines, colour = "#e2e8f0",
+             linewidth = 0.4, linetype = "solid") +
+  geom_vline(xintercept = 0, colour = "#475569", linewidth = 0.7) +
+  geom_rect(
+    data = butterfly_df,
+    aes(xmin = x_start, xmax = x_end,
+        ymin = age_num - 0.40, ymax = age_num + 0.40,
+        fill = education),
+    colour = "white", linewidth = 0.15
+  ) +
+  geom_text(
+    data  = emp_labels,
+    aes(x = x_pos, y = age_num, label = label, hjust = hjust, colour = sex),
+    size = 3, fontface = "bold", family = "sans", show.legend = FALSE
+  ) +
+  scale_colour_manual(values = c(Male = "#0072B2", Female = "#CC79A7")) +
+  # Male label — blue
+  annotate("text", x = -50, y = 10.82, label = "\u2190  MALE",
+           hjust = 0.5, colour = "#0072B2", size = 3.2,
+           fontface = "bold") +
+  # Female label — pink
+  annotate("text", x = 50, y = 10.82, label = "FEMALE  \u2192",
+           hjust = 0.5, colour = "#CC79A7", size = 3.2,
+           fontface = "bold") +
+  scale_fill_manual(
+    values = wong,
+    breaks = rev(edu_inner_first),
+    guide  = guide_legend(
+      nrow        = 1,
+      reverse     = FALSE,
+      keywidth    = unit(0.9, "cm"),
+      keyheight   = unit(0.35, "cm"),
+      label.theme = element_text(size = 9, colour = "#334155"),
+      title.theme = element_text(size = 9.5, colour = "#1e3a8a", face = "bold")
+    )
+  ) +
+  scale_x_continuous(
+    breaks = c(-75, -50, -25, 0, 25, 50, 75),
+    labels = function(x) paste0(abs(x), "%"),
+    limits = c(-105, 105),
+    expand = expansion(add = 0)
+  ) +
+  scale_y_continuous(
+    breaks = 1:10,
+    labels = levels(employment_data$age_group),
+    expand = expansion(add = c(0.5, 0.95))
+  ) +
+  labs(
+    title    = "Employment Rate by Age Group, Gender & Education — Singapore 2024",
+    subtitle = "Bar width = employment rate · % at bar tip = employment rate for that age-sex group · Degree-holders appear closest to the centre spine",
+    x        = "← Employment Rate (Male)     |     Employment Rate (Female) →",
+    y        = NULL,
+    fill     = "Highest Qualification",
+    caption  = "Source: MOM Comprehensive Labour Force Survey 2024 · Table B1 (employment rates) · Table G4 (education counts by age and sex)"
+  ) +
+  light_theme(12) +
+  theme(
+    legend.position   = "bottom",
+    legend.direction  = "horizontal",
+    legend.margin     = margin(t = 6, b = 2),
+    panel.background  = element_rect(fill = "white", colour = NA),
+    panel.grid.major  = element_blank(),
+    axis.text.y  = element_text(colour = "#1e293b", size = 10, face = "bold",
+                                hjust = 0.5, margin = margin(r = 4)),
+    axis.text.x  = element_text(colour = "#64748b", size = 9),
+    axis.title.x = element_text(colour = "#64748b", size = 9, margin = margin(t = 6)),
+    plot.title   = element_text(size = 13, face = "bold", colour = "#1e3a8a"),
+    plot.subtitle = element_text(size = 9.5, colour = "#64748b", margin = margin(t=3, b=8)),
+    plot.margin  = margin(8, 24, 6, 8)
+  )
+```
+
+:::
+
+::: {.column width="32%"}
+
+```{=html}
+<div class="s-stack" style="padding-top:6px;">
+
+  <div class="s-card s-card--navy" style="padding:11px 14px;">
+    <div class="s-info__title">How to read this chart</div>
+    <div class="s-card__body" style="font-size:0.82em; color:#334155; margin-top:4px;">Each row is one age group. Left side = Males, Right side = Females. Four dimensions are encoded simultaneously.</div>
+  </div>
+
+  <div class="s-card s-card--blue" style="padding:10px 14px;">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--blue">①</span>
+      <span style="font-weight:700; color:#1e3a8a; font-size:0.85em;">Age group</span>
+    </div>
+    <div class="s-card__body" style="font-size:0.82em;">Rows — 25–29 at top through 70+ at bottom.</div>
+  </div>
+
+  <div class="s-card s-card--blue" style="padding:10px 14px;">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--blue">②</span>
+      <span style="font-weight:700; color:#1e3a8a; font-size:0.85em;">Gender</span>
+    </div>
+    <div class="s-card__body" style="font-size:0.82em;">Left wing = Male · Right wing = Female. Mirror layout makes comparison instant across any row.</div>
+  </div>
+
+  <div class="s-card s-card--blue" style="padding:10px 14px;">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--blue">③</span>
+      <span style="font-weight:700; color:#1e3a8a; font-size:0.85em;">Employment rate</span>
+    </div>
+    <div class="s-card__body" style="font-size:0.82em;"><strong>Bar width</strong> = employment rate (%). The printed % tip is exact. No cohort can dominate by raw size.</div>
+  </div>
+
+  <div class="s-card s-card--blue" style="padding:10px 14px;">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--blue">④</span>
+      <span style="font-weight:700; color:#1e3a8a; font-size:0.85em;">Education mix</span>
+    </div>
+    <div class="s-card__body" style="font-size:0.82em;"><strong>Bar fill</strong> = share of each qualification level. Degree is always closest to the spine — a consistent anchor for every row.</div>
+  </div>
+
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 6</div>
+  <div class="s-stat__num">Insights &amp; Analysis</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">Key Findings from the Data</div>
+</div>
+```
+
+---
+
+## Insight 1 — The Gender Employment Gap {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="62%"}
+
+```{r}
+#| echo: false
+#| fig-width: 8.5
+#| fig-height: 5.4
+
+gap_df <- employment_data |>
+  select(sex, age_group, emp_rate_2024) |>
+  pivot_wider(names_from = sex, values_from = emp_rate_2024) |>
+  mutate(gap = Male - Female)
+
+ggplot(gap_df, aes(x = age_group, y = gap, fill = gap > 0)) +
+  geom_col(show.legend = FALSE, width = 0.65) +
+  geom_hline(yintercept = 0, colour = "#334155", linewidth = 0.5) +
+  geom_text(
+    aes(label = paste0(ifelse(gap > 0, "+", ""), round(gap, 1), "pp"),
+        vjust = ifelse(gap >= 0, -0.5, 1.5)),
+    colour = "#1e293b", size = 3.2, fontface = "bold"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#0072B2", "FALSE" = "#CC79A7")) +
+  scale_y_continuous(
+    labels = \(x) paste0(x, "pp"),
+    expand = expansion(mult = .18)
+  ) +
+  labs(
+    title    = "Gender Employment Gap (Male − Female) by Age Group, 2024",
+    subtitle = "Blue bars = males higher · Pink bar = females higher",
+    x = NULL, y = "Percentage-point difference",
+    caption  = "Source: MOM LFS 2024, Table B1"
+  ) +
+  light_theme(12)
+```
+
+:::
+
+::: {.column width="38%"}
+
+```{=html}
+<div class="s-stack">
+
+  <div class="s-card s-card--blue">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--blue">1</span>
+      <span style="font-weight:700; color:#1e3a8a;">Ages 25–29 — females lead</span>
+    </div>
+    <div class="s-card__body">Young women enter the workforce at higher rates than young men. This is the only age band where females come out ahead, and it lines up with their higher degree attainment on entry.</div>
+  </div>
+
+  <div class="s-card s-card--slate">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--slate">2</span>
+      <span style="font-weight:700; color:#1e3a8a;">Ages 30–59 — males consistently ahead</span>
+    </div>
+    <div class="s-card__body">The gap peaks around 40–54 at roughly 8–9 percentage points. This pattern is consistent with caregiving responsibilities reducing female participation in mid-career.</div>
+  </div>
+
+  <div class="s-card s-card--red">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--red">3</span>
+      <span style="font-weight:700; color:#1e3a8a;">Ages 60+ — gap widens sharply</span>
+    </div>
+    <div class="s-card__body">Males sustain high employment rates well into their 60s. Female rates drop steeply, reflecting earlier average retirement ages and a stronger tendency to exit the workforce.</div>
+  </div>
+
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## Insight 2 — Does More Education Mean Higher Employment? {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="62%"}
+
+```{r}
+#| echo: false
+#| fig-width: 8.5
+#| fig-height: 5.4
+
+employment_data |>
+  ggplot(aes(x = Degree, y = emp_rate_2024, colour = sex, label = age_group)) +
+  geom_point(size = 4, alpha = 0.9) +
+  geom_text(nudge_y = 1.8, size = 2.8, show.legend = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.9, linetype = "dashed") +
+  scale_colour_manual(values = c(Female = "#CC79A7", Male = "#0072B2")) +
+  scale_x_continuous(labels = label_number(suffix = "%")) +
+  scale_y_continuous(labels = label_number(suffix = "%"),
+                     expand = expansion(mult = .1)) +
+  labs(
+    title    = "Degree Share vs Employment Rate — Singapore 2024",
+    subtitle = "Each point = one age group × sex combination (n = 20)",
+    x        = "Share of employed residents holding a degree (%)",
+    y        = "Employment rate (%)",
+    colour   = NULL,
+    caption  = "Source: MOM LFS 2024, Tables B1 & G4"
+  ) +
+  light_theme(12) +
+  theme(
+    legend.position = "top",
+    legend.margin   = margin(0, 0, 2, 0)
+  )
+```
+
+:::
+
+::: {.column width="38%"}
+
+```{=html}
+<div class="s-stack">
+
+  <div class="s-card s-card--slate">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--slate">1</span>
+      <span style="font-weight:700; color:#1e3a8a;">It's about age, not just qualifications</span>
+    </div>
+    <div class="s-card__body">The 30–39 bands have both the highest degree shares <em>and</em> the highest employment rates. But that's because 30–39 is peak working age — the degrees are concentrated there for historical reasons, not because qualifications are directly driving employment.</div>
+  </div>
+
+  <div class="s-card s-card--pink">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--pink">2</span>
+      <span style="font-weight:700; color:#1e3a8a;">Female 30–39 — most qualified, still behind</span>
+    </div>
+    <div class="s-card__body">Over 60% of employed females aged 30–39 hold a university degree — the highest share in the entire dataset. Yet their employment rates still trail male counterparts. Degrees alone don't close the gap.</div>
+  </div>
+
+  <div class="s-card s-card--slate">
+    <div class="s-card__title">
+      <span class="s-badge s-badge--gray">3</span>
+      <span style="font-weight:700; color:#1e3a8a;">70+ — everything drops together</span>
+    </div>
+    <div class="s-card__body">Low degree share and low employment rate in the 70+ group reflect a past era of limited access to higher education — not a signal about today's labour market conditions.</div>
+  </div>
+
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## {background-color="#1e3a8a" .center}
+
+```{=html}
+<div style="text-align:center; padding:60px 0;">
+  <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 7</div>
+  <div class="s-stat__num">Conclusion</div>
+  <div style="font-size:0.82em; color:#88abfc; margin-top:14px;">What the Redesign Achieves & What the Data Tells Us</div>
+</div>
+```
+
+---
+
+## Conclusions {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="46%"}
+
+**What our redesign delivers**
+
+Compared to the original chart, our butterfly chart shows all four dimensions — age, gender, employment rate, and education mix — in a single, readable static image.
+
+```{=html}
+<div class="s-stack">
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">The butterfly layout makes gender comparison instant — just scan across any row</span>
+  </div>
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">Bar width encodes who's <em>actually working</em>, not just who lives in Singapore</span>
+  </div>
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">Degrees stacked closest to the spine give a shared anchor for every row comparison</span>
+  </div>
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">Rate-normalised axis means no single age group distorts the picture</span>
+  </div>
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">Wong (2011) colours are readable for all viewers regardless of colour-vision ability</span>
+  </div>
+  <div class="s-step">
+    <span style="color:#0072B2; flex-shrink:0;">→</span>
+    <span class="s-step__text">Printed rate labels mean exact figures are readable without any interaction</span>
+  </div>
+</div>
+```
+
+:::
+
+::: {.column width="54%"}
+
+**Three things the data tells us**
+
+```{=html}
+<div class="s-stack">
+
+  <div class="s-card s-card--navy">
+    <div class="s-card__title">
+      <div class="s-badge s-badge--icon" style="background:#eff6ff;">
+        <span style="font-size:1em;">①</span>
+      </div>
+      <span style="font-weight:700; color:#1e3a8a;">Young women are outpacing young men</span>
+    </div>
+    <p class="s-card__body" style="margin:0;">At 25–29, female employment rates exceed males by ~5pp — the only age band where this happens. Higher degree attainment on entry to the workforce appears to be driving this reversal.</p>
+  </div>
+
+  <div class="s-card s-card--navy">
+    <div class="s-card__title">
+      <div class="s-badge s-badge--icon" style="background:#eff6ff;">
+        <span style="font-size:1em;">②</span>
+      </div>
+      <span style="font-weight:700; color:#1e3a8a;">Degrees peak in the 30s, but the gender gap persists</span>
+    </div>
+    <p class="s-card__body" style="margin:0;">Female 30–39 year-olds are the most degree-qualified group in the entire dataset. Yet they still trail male counterparts in employment rates — structural factors matter more than qualifications alone.</p>
+  </div>
+
+  <div class="s-card s-card--navy">
+    <div class="s-card__title">
+      <div class="s-badge s-badge--icon" style="background:#eff6ff;">
+        <span style="font-size:1em;">③</span>
+      </div>
+      <span style="font-weight:700; color:#1e3a8a;">The gap grows with age</span>
+    </div>
+    <p class="s-card__body" style="margin:0;">From 50 onwards, male employment rates stay high while female rates decline sharply. This points to earlier labour force withdrawal among women — not lower education — as the main driver.</p>
+  </div>
+
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## Thank You for Listening! {.center}
+
+<br>
+
+**AAI1001 Data Engineering & Visualization · Team Project**
+
+<br>
+
+Team 32 · Adheesh · Shannon · Thiha Thein · Jinghong · Zafri
+
+<br>
+
+---
+
+## References {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+**Data sources**
+
+Ministry of Manpower, *Labour Force in Singapore 2024*, Mom.gov.sg, 2024.
+Table B1: Resident Employment Rate by Age and Sex  
+Table G4: Employed Residents by Highest Qualification Attained, Age and Sex 
+[stats.mom.gov.sg](https://stats.mom.gov.sg/Pages/Labour-Force-In-Singapore-2024.aspx)
+
+:::
+
+::: {.column width="50%"}
+
+**Original visualization**
+
+FYT Consultants, *"A Data-Driven Look at Singapore's Graduate Unemployment Debate"*, September 2025  
+[fytconsultants.com](https://www.fytconsultants.com/single-post/a-data-driven-look-at-singapore-s-graduate-unemployment-debate)
+
+**Co lour palette**
+
+B. Wong, *Points of View: Color Blindness*, Nature Methods, vol.8, no. 6, pp. 441–441, May 2011, [doi](https://doi.org/10.1038/nmeth.1618)
+
+:::
+
+::::

@@ -1,0 +1,429 @@
+/*-- scss:defaults --*/
+
+// ── Typography ────────────────────────────────────────────────────────────────
+$font-family-sans-serif:     'Inter', 'Segoe UI', system-ui, sans-serif !default;
+$font-family-monospace:      'JetBrains Mono', 'Fira Code', monospace !default;
+$presentation-font-size-root: 28px !default;
+
+// ── Colours ───────────────────────────────────────────────────────────────────
+$body-bg:                   #ffffff !default;
+$body-color:                #1e293b !default;
+$presentation-heading-color: #1e3a8a !default;
+$presentation-heading-font:  'Inter', 'Segoe UI', system-ui, sans-serif !default;
+$link-color:                 #2563eb !default;
+
+// Design tokens (referenced in rules below)
+$navy:       #1e3a8a;
+$blue:       #2563eb;
+$slate:      #334155;
+$muted:      #64748b;
+$border-lt:  #e2e8f0;
+$bg-lt:      #f8fafc;
+$blue-tint:  #eff6ff;
+$blue-light: #dbeafe;
+$accent-m:   #0072B2;   // Male colour (Wong)
+$accent-f:   #CC79A7;   // Female colour (Wong)
+
+/*-- scss:rules --*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+// ── Base ──────────────────────────────────────────────────────────────────────
+.reveal {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: #1e293b;
+}
+
+.reveal .slides section {
+  background-color: #ffffff;
+}
+
+// ── Headings ──────────────────────────────────────────────────────────────────
+// h1 only appears on the title slide; colour set to light blue for contrast
+// against the dark gradient background. .title-slide h1 below is kept for
+// specificity safety but should always match this value.
+.reveal h1 {
+  font-size: 2em;
+  font-weight: 800;
+  color: #5f7bf5;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.reveal h2 {
+  font-size: 1.2em;
+  font-weight: 700;
+  color: #1e3a8a;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25em;
+  padding-bottom: 0.22em;
+  border-bottom: 2px solid #88abfc;
+}
+
+.reveal h3 {
+  font-size: 1em;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+// ── Body text ─────────────────────────────────────────────────────────────────
+.reveal p,
+.reveal li {
+  font-size: 1em;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.reveal ul,
+.reveal ol { margin-left: 1.2em; }
+.reveal li  { margin-bottom: 0.3em; }
+
+.reveal strong { color: #0f172a; font-weight: 600; }
+.reveal em     { color: #2563eb; font-style: italic; }
+
+// ── HR divider ────────────────────────────────────────────────────────────────
+.reveal hr {
+  border: none;
+  border-top: 2px solid #dbeafe;
+  margin: 0.25em 0 0.6em;
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────────
+.reveal table {
+  font-size: 1em;
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+}
+
+.reveal table th {
+  background: #1e3a8a;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 9px 13px;
+  text-align: left;
+}
+
+.reveal table td {
+  padding: 7px 13px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: top;
+}
+
+.reveal table tr:nth-child(even) td { background: #f8fafc; }
+.reveal table tr:last-child td      { border-bottom: none; }
+
+// ── Code ──────────────────────────────────────────────────────────────────────
+.reveal pre {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.7em !important;
+  box-shadow: none;
+  margin: 0.5em 0;
+}
+
+.reveal code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.82em;
+}
+
+.reveal pre code {
+  background: transparent;
+  color: #1e293b;
+  padding: 0;
+  font-size: 1em;
+}
+
+// ── Callouts ──────────────────────────────────────────────────────────────────
+.reveal .callout {
+  font-size: 0.78em;
+  border-radius: 8px;
+  margin: 0.5em 0;
+}
+
+.reveal .callout-note    { background: #eff6ff; border-left: 4px solid #2563eb; }
+.reveal .callout-tip     { background: #f0fdf4; border-left: 4px solid #16a34a; }
+.reveal .callout-warning { background: #fff7ed; border-left: 4px solid #f97316; }
+.reveal .callout p       { color: #334155; font-size: 0.95em; }
+
+// ── Chrome: footer, slide number, progress ───────────────────────────────────
+.reveal .footer {
+  font-size: 0.42em !important;
+  color: #94a3b8 !important;
+}
+
+.reveal .slide-number {
+  font-size: 0.5em !important;
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+
+.reveal .progress      { background: #dbeafe; height: 3px; }
+.reveal .progress span { background: #1e3a8a; }
+
+// ── Layout helpers ────────────────────────────────────────────────────────────
+.reveal .columns { gap: 1.8em; align-items: flex-start; }
+.reveal .center  { text-align: center; }
+
+// ── kableExtra tables ─────────────────────────────────────────────────────────
+.reveal .kableExtra,
+.reveal .kable_wrapper { font-size: 0.74em; }
+
+// ── Title slide ───────────────────────────────────────────────────────────────
+.reveal .title-slide {
+  background: linear-gradient(140deg, #0f2d6b 0%, #1e3a8a 45%, #2563eb 100%) !important;
+}
+
+// Matches .reveal h1 colour above — both set to #bfdbfe so there is no conflict
+.reveal .title-slide h1 {
+  color: #bfdbfe !important;
+  font-size: 1.6em;
+  font-weight: 800;
+}
+
+.reveal .title-slide .subtitle {
+  font-size: 0.85em;
+  color: #bfdbfe;
+  font-weight: 400;
+  margin-top: 0.4em;
+}
+
+.reveal .title-slide .author {
+  font-size: 0.7em;
+  color: #93c5fd;
+  margin-top: 1em;
+}
+
+.reveal .title-slide .date {
+  font-size: 0.62em;
+  color: #60a5fa;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SLIDE COMPONENT CLASSES
+// These replace the repeated inline style="" patterns in slides.qmd.
+// Apply them as class="..." on HTML elements inside {=html} blocks.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Insight / finding cards ───────────────────────────────────────────────────
+// Usage: <div class="s-card s-card--blue"> ... </div>
+// Colour modifiers: --blue  --slate  --pink  --red  --green  --amber
+
+.s-card {
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 0;
+}
+
+.s-card--blue   { background: #eff6ff;  border-left: 4px solid #0072B2; }
+.s-card--slate  { background: #f8fafc;  border-left: 4px solid #64748b; }
+.s-card--pink   { background: #fdf4ff;  border-left: 4px solid #CC79A7; }
+.s-card--red    { background: #fff1f2;  border-left: 4px solid #e11d48; }
+.s-card--green  { background: #f0fdf4;  border-left: 4px solid #16a34a; }
+.s-card--amber  { background: #fffbeb;  border-left: 4px solid #d97706; }
+.s-card--navy   { background: #f8fafc;  border-left: 4px solid #1e3a8a;
+                  border: 1px solid #e2e8f0; }
+
+.s-card__title {
+  font-weight: 700;
+  color: #1e3a8a;
+  font-size: 0.92em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.s-card__body {
+  font-size: 0.86em;
+  color: #475569;
+  line-height: 1.65;
+}
+
+// ── Numbered badge (circle) ───────────────────────────────────────────────────
+// Usage: <span class="s-badge s-badge--blue">1</span>
+.s-badge {
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.82em;
+  flex-shrink: 0;
+  color: white;
+}
+
+.s-badge--blue   { background: #0072B2; }
+.s-badge--slate  { background: #64748b; }
+.s-badge--red    { background: #e11d48; }
+.s-badge--pink   { background: #CC79A7; }
+.s-badge--navy   { background: #1e3a8a; }
+.s-badge--amber  { background: #d97706; }
+.s-badge--gray   { background: #94a3b8; }
+
+// ── Icon badge (square rounded, for emoji icons) ──────────────────────────────
+// Usage: <div class="s-icon-badge s-icon-badge--blue">↔</div>
+.s-icon-badge {
+  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.2em;
+}
+
+.s-icon-badge--blue   { background: #dbeafe; }
+.s-icon-badge--pink   { background: #fce7f3; }
+.s-icon-badge--green  { background: #dcfce7; }
+.s-icon-badge--amber  { background: #fef3c7; }
+
+// ── Stat chip (for key-number highlights) ─────────────────────────────────────
+// Usage: <div class="s-stat s-stat--navy"> <div class="s-stat__num">89%</div>
+//         <div class="s-stat__label">label</div> </div>
+.s-stat {
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.s-stat--navy   { border-top: 3px solid #1e3a8a; }
+.s-stat--pink   { border-top: 3px solid #CC79A7; }
+.s-stat--blue   { border-top: 3px solid #0072B2; }
+.s-stat--green  { border-top: 3px solid #009E73; }
+.s-stat--amber  { border-top: 3px solid #d97706; }
+
+.s-stat__num {
+  font-size: 1.4em;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #1e3a8a;
+}
+
+.s-stat__label {
+  font-size: 0.65em;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+// ── Section label (small all-caps tag) ────────────────────────────────────────
+// Usage: <div class="s-section-label">Three questions this project answers</div>
+.s-section-label {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: #1e3a8a;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+// ── Info card (plain background, used for publisher/year callouts) ─────────────
+// Usage: <div class="s-info"> <div class="s-info__title">Publisher</div> ... </div>
+.s-info {
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.s-info__title {
+  font-weight: 700;
+  color: #1e3a8a;
+  font-size: 0.82em;
+  margin-bottom: 5px;
+}
+
+.s-info__body {
+  font-size: 0.8em;
+  color: #334155;
+  line-height: 1.55;
+}
+
+// ── Alert strip (coloured left-border inline note) ────────────────────────────
+// Usage: <div class="s-alert s-alert--orange"> ... </div>
+.s-alert {
+  padding: 12px 16px;
+  border-radius: 0 8px 8px 0;
+}
+
+.s-alert--orange {
+  background: #fff7ed;
+  border-left: 4px solid #f97316;
+}
+
+.s-alert__title {
+  font-weight: 700;
+  color: #c2410c;
+  font-size: 0.82em;
+  margin-bottom: 4px;
+}
+
+.s-alert__body {
+  font-size: 0.8em;
+  color: #7c2d12;
+  line-height: 1.55;
+}
+
+// ── Pipeline step row ─────────────────────────────────────────────────────────
+// Usage: <div class="s-step"> <div class="s-badge s-badge--navy">1</div>
+//         <div class="s-step__text"> ... </div> </div>
+.s-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+}
+
+.s-step__text {
+  font-size: 0.8em;
+  color: #334155;
+  line-height: 1.5;
+}
+
+// ── Flex card stack (wrapper for vertically stacked cards) ────────────────────
+// Usage: <div class="s-stack"> ... </div>
+.s-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// ── Grid helpers ──────────────────────────────────────────────────────────────
+.s-grid-2 { display: grid; grid-template-columns: 1fr 1fr;         gap: 14px; }
+.s-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr;     gap: 14px; }
+.s-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+
+// ── Additional badge variants ─────────────────────────────────────────────────
+// Pill-shaped label badge (for S1–S4, W1–W6 in the critique slide)
+.s-badge--label {
+  border-radius: 4px;
+  width: auto;
+  height: auto;
+  padding: 2px 8px;
+  font-size: 0.7em;
+}
+
+// Icon-sized circle badge (for ①②③ in conclusions)
+.s-badge--icon {
+  width: 32px;
+  height: 32px;
+  font-size: 1em;
+  color: #1e3a8a;
+}
