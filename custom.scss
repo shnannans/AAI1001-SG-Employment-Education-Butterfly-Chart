@@ -145,6 +145,29 @@ $accent-f:   #CC79A7;   // Female colour (Wong)
   font-size: 1em;
 }
 
+.reveal .tall-code pre {
+  max-height: 600px !important;
+  overflow-y: auto !important;
+}
+
+// ── No-scroll slide override ──────────────────────────────────────────────────
+// Applied per-slide with {.no-scroll}. Stops RevealJS scrollable from
+// expanding the section beyond the viewport height.
+.reveal section.no-scroll {
+  overflow: hidden !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+// ── Pipeline-code block (data engineering workflow slide) ─────────────────────
+// Fixed height + internal scroll so the code fits the column without the
+// slide itself needing to scroll.
+.reveal .pipeline-code pre {
+  max-height: 450px !important;
+  overflow-y: auto !important;
+  font-size: 0.62em !important;
+}
+
 // ── Callouts ──────────────────────────────────────────────────────────────────
 .reveal .callout {
   font-size: 0.78em;
@@ -395,6 +418,12 @@ $accent-f:   #CC79A7;   // Female colour (Wong)
   font-size: 0.8em;
   color: #334155;
   line-height: 1.5;
+}
+
+// ── Custom Table Sizing ─────────────────────────────────────────────────────────
+.reveal .wide-table {
+  width: 115% !important;
+  margin-left: -7.5% !important;
 }
 
 // ── Flex card stack (wrapper for vertically stacked cards) ────────────────────

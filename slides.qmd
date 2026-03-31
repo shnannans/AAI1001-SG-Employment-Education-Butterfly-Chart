@@ -517,7 +517,6 @@ tibble::tribble(
 ---
 
 ## {background-color="#1e3a8a" .center}
-
 ```{=html}
 <div style="text-align:center; padding:60px 0;">
   <div style="font-size:0.7em; font-weight:600; color:#88abfc; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Section 4</div>
@@ -528,9 +527,24 @@ tibble::tribble(
 
 ---
 
-## How We Cleaned the Data {.smaller}
+## How We Cleaned the Data {.smaller .no-scroll}
 
 <hr>
+```{=html}
+<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:16px; font-size:0.78em;">
+  <div style="background:#1e3a8a; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap; font-weight:600;">Load Excel Data Files</div>
+  <span style="color:#64748b; font-weight:700;">→</span>
+  <div style="background:#475569; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap;">Skip Title Rows, Read Raw Data</div>
+  <span style="color:#64748b; font-weight:700;">→</span>
+  <div style="background:#475569; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap;">Attach Gender Label to Each Row</div>
+  <span style="color:#64748b; font-weight:700;">→</span>
+  <div style="background:#475569; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap;">Keep Only the 10 Age Bands</div>
+  <span style="color:#64748b; font-weight:700;">→</span>
+  <div style="background:#475569; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap;">Convert Counts to % Shares</div>
+  <span style="color:#64748b; font-weight:700;">→</span>
+  <div style="background:#1e3a8a; color:#fff; padding:5px 11px; border-radius:20px; white-space:nowrap; font-weight:600;">Merge Both Tables → employment_data</div>
+</div>
+```
 
 :::: {.columns}
 
@@ -553,18 +567,17 @@ Some cells contain `"-"` instead of zero. We replace those and convert everythin
 **Step 5 — Compute education shares (G4)**  
 Each education level ÷ row total × 100. This gives the % within each age × sex cell.
 
-**Step 6 — Join the two tables**  
-`left_join` on `sex × age_group` → one clean table: **`employment_data`** (20 rows × 8 columns).
+**Step 6 — Join the two tables, fix factor order**  
+`left_join` on `sex × age_group` → one clean table. We then factor-order `age_group` so ggplot renders rows 25–29 at top through 70+ at bottom — without this, the butterfly rows appear scrambled.
 
 :::
 
 ::: {.column width="58%"}
-
 ```{r}
 #| echo: true
 #| eval: false
+#| class-source: pipeline-code
 
-# Step 1 — Load, skip merged headers
 b1_raw <- read_excel("data/LFR2024_SectionB_EmploymentRate.xlsx",
                      sheet = "B1", skip = 6, col_names = FALSE)
 g4_raw <- read_excel("data/LFR2024_SectionG_MedianAge_DemographicProfile.xlsx",
@@ -589,9 +602,83 @@ edu_long <- parse_g4(g4_raw) |>
     `Degree`                        = degree     / edu_total * 100
   )
 
-# Step 6 — Join → employment_data (20 rows × 8 cols)
+# Step 6 — Join + factor-order age_group → employment_data (20 rows × 8 cols)
 employment_data <- emp_df |>
-  left_join(edu_long, by = c("sex", "age_group"))
+  left_join(edu_long, by = c("sex", "age_group")) |>
+  mutate(age_group = factor(age_group, levels = age_levels))
+```
+
+:::
+
+::::
+
+---
+
+## Inside `parse_b1()` — How the Forward-Fill Works {.smaller}
+
+<hr>
+
+:::: {.columns}
+
+::: {.column width="44%"}
+
+The trickiest part of the pipeline is recovering the gender label. The raw Excel looks like this:
+```{=html}
+<table style="font-size:0.82em; border-collapse:collapse; width:100%; margin-bottom:14px;">
+  <thead>
+    <tr style="background:#eff6ff;">
+      <th style="padding:5px 10px; text-align:left; border:1px solid #e2e8f0;">Col A (sex)</th>
+      <th style="padding:5px 10px; text-align:left; border:1px solid #e2e8f0;">Col B (age)</th>
+      <th style="padding:5px 10px; text-align:left; border:1px solid #e2e8f0;">… 2024</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:4px 10px; border:1px solid #e2e8f0; color:#0072B2; font-weight:700;">Male</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td></tr>
+    <tr><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">25 - 29</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">89.2</td></tr>
+    <tr><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">30 - 34</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">96.1</td></tr>
+    <tr><td style="padding:4px 10px; border:1px solid #e2e8f0; color:#CC79A7; font-weight:700;">Female</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td></tr>
+    <tr><td style="padding:4px 10px; border:1px solid #e2e8f0;">NA</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">25 - 29</td><td style="padding:4px 10px; border:1px solid #e2e8f0;">84.7</td></tr>
+  </tbody>
+</table>
+```
+
+The gender label only appears **once** as a standalone header row as the data rows beneath it have `NA` in that column, so every age band row is missing its own gender tag.
+
+So instead, we use a loop: read through every row top to bottom, and whenever we see `"Male"` or `"Female"`, remember it. Then when we hit a data row like `25 - 29`, we stamp it with whatever gender we last saw. That remembered value is `current_sex` in the code on the right.
+
+:::
+
+::: {.column width="56%"}
+```{r}
+#| echo: true
+#| eval: false
+#| class-source: tall-code
+
+# FIX 1: The core forward-fill loop inside parse_b1()
+current_sex <- NA   # holds the most recent gender header seen
+
+for (i in seq_len(nrow(raw))) {
+  r <- raw[i, ]
+
+  # When we hit a gender header row, update the tracker
+  if (!is.na(r$sex) && r$sex %in% c("Total", "Male", "Female"))
+    current_sex <- r$sex
+
+  # When we hit an age-band data row, record it with the carried label
+  if (!is.na(r$age) && trimws(r$age) %in% target_ages) {
+    rows[[length(rows) + 1]] <- data.frame(
+      sex           = current_sex,      # <-- forward-filled label
+      age_group     = trimws(r$age),
+      emp_rate_2024 = as.numeric(r[["2024"]])
+    )
+  }
+}
+```
+```{=html}
+<div class="s-alert" style="background:#eff6ff; border-left:4px solid #2563eb; padding:10px 14px; margin-top:10px; font-size:0.82em;">
+  <strong style="color:#1e3a8a;">Why a loop and not tidyr?</strong><br>
+  <span style="color:#334155;">The gender label is in a completely separate row from the data rows it belongs to — there's no shared key column to join on. Row-by-row iteration with a running <code>current_sex</code> variable is the most direct way to handle this structure.</span>
+</div>
 ```
 
 :::
@@ -603,39 +690,39 @@ employment_data <- emp_df |>
 ## The Clean Data — `employment_data` {.smaller}
 
 <hr>
-
 ```{r}
 #| echo: false
+
 employment_data |>
   head(10) |>
   mutate(across(where(is.numeric), \(x) round(x, 1))) |>
   knitr::kable(
-    format = "html",
-    col.names = c("Sex","Age group","Emp. rate (%)","Below Sec. (%)","Secondary (%)",
-                  "Post-Sec. (%)","Diploma (%)","Degree (%)")
+    format    = "html",
+    col.names = c("Sex", "Age Group", "Emp. Rate (%)",
+                  "Below Sec. (%)", "Secondary (%)",
+                  "Post-Sec. (%)", "Diploma (%)", "Degree (%)"),
+    align     = c("l", "l", "r", "r", "r", "r", "r", "r")
   ) |>
-  kableExtra::kable_styling(font_size = 16, full_width = TRUE,
-    bootstrap_options = c("striped","hover")) |>
-  kableExtra::scroll_box(width = "100%", height = "428px")
+  kableExtra::kable_styling(
+    font_size         = 17,
+    full_width        = TRUE,
+    bootstrap_options = c("striped", "hover")
+  )
 ```
-
-<br>
-
 ```{=html}
 <div class="s-alert" style="background:#eff6ff; border-left:4px solid #2563eb; padding:11px 16px; margin-top:12px;">
   <span class="s-step__text"><strong style="color:#1e3a8a;">20 rows total</strong> — 10 age bands × 2 sexes. Employment rate from Table B1. The five education share columns from Table G4 always sum to 100% within each row.</span>
 </div>
-
-<div class="s-grid-3">
-  <div class="s-card s-card--blue" style="padding:11px 14px; border-radius:8px;">
+<div class="s-grid-3" style="margin-top:20px;">
+  <div class="s-card s-card--blue" style="padding:18px 20px; border-radius:8px;">
     <div class="s-info__title">Table dimensions</div>
     <div class="s-info__body">20 rows · 8 columns<br>10 age bands × 2 sexes</div>
   </div>
-  <div class="s-card s-card--green" style="padding:11px 14px; border-radius:8px; border-left:4px solid #16a34a;">
+  <div class="s-card s-card--green" style="padding:18px 20px; border-radius:8px; border-left:4px solid #16a34a;">
     <div class="s-info__title">Education shares</div>
     <div class="s-info__body">5 education columns from Table G4<br>always sum to 100% per row</div>
   </div>
-  <div class="s-card s-card--amber" style="padding:11px 14px; border-radius:8px;">
+  <div class="s-card s-card--amber" style="padding:18px 20px; border-radius:8px;">
     <div class="s-info__title">Reproducibility</div>
     <div class="s-info__body">Fully documented in code — anyone with the raw Excel files can reproduce this table exactly</div>
   </div>
@@ -728,11 +815,9 @@ ggplot() +
     size = 3, fontface = "bold", family = "sans", show.legend = FALSE
   ) +
   scale_colour_manual(values = c(Male = "#0072B2", Female = "#CC79A7")) +
-  # Male label — blue
   annotate("text", x = -50, y = 10.82, label = "\u2190  MALE",
            hjust = 0.5, colour = "#0072B2", size = 3.2,
            fontface = "bold") +
-  # Female label — pink
   annotate("text", x = 50, y = 10.82, label = "FEMALE  \u2192",
            hjust = 0.5, colour = "#CC79A7", size = 3.2,
            fontface = "bold") +
@@ -826,6 +911,284 @@ ggplot() +
       <span style="font-weight:700; color:#1e3a8a; font-size:0.85em;">Education mix</span>
     </div>
     <div class="s-card__body" style="font-size:0.82em;"><strong>Bar fill</strong> = share of each qualification level. Degree is always closest to the spine — a consistent anchor for every row.</div>
+  </div>
+
+</div>
+```
+
+:::
+
+::::
+
+---
+
+## Before vs After — Six Fixes at a Glance
+
+<hr style="margin: 3px 0 6px 0;">
+
+:::: {.columns}
+
+::: {.column width="42%"}
+```{=html}
+<p style="font-weight:700; color:#b91c1c; font-size:0.75em; margin:0 0 3px 0;">
+  Original — FYT Consultants
+</p>
+
+<div style="width:100%; text-align:center;">
+  <div style="position:relative; display:inline-block;">
+
+    <img
+      src="https://static.wixstatic.com/media/420198_c8e3f9f7fe3141eca81e18827ad2472d~mv2.png/v1/fill/w_705,h_1004,al_c,q_90,enc_avif,quality_auto/420198_c8e3f9f7fe3141eca81e18827ad2472d~mv2.png"
+      alt="Original chart"
+      style="max-height:460px; width:auto; border-radius:6px;
+             box-shadow:0 2px 10px rgba(0,0,0,0.12); display:block;"
+    />
+
+    <!-- W1: rotated age-group labels across the top -->
+    <div style="position:absolute; top:16%; left:74%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(-50%,-50%); white-space:nowrap;">W1</div>
+
+    <!-- W2: gap dividing the two panels -->
+    <div style="position:absolute; top:55%; left:6%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(0,-50%); white-space:nowrap;">W2</div>
+
+    <!-- W3: floating stacked segments in % panel -->
+    <div style="position:absolute; top:34%; left:52%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(-50%,-50%); white-space:nowrap;">W3</div>
+
+    <!-- W4: towering 65+ bar in the count panel -->
+    <div style="position:absolute; top:65%; left:89%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(-50%,-50%); white-space:nowrap;">W4</div>
+
+    <!-- W5: no numbers on any bar -->
+    <div style="position:absolute; top:28%; left:26%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(-50%,-50%); white-space:nowrap;">W5</div>
+
+    <!-- W6: colour legend with accessibility issues -->
+    <div style="position:absolute; top:92%; left:35%;
+                background:#b91c1c; color:white; border-radius:12px; padding:1px 7px;
+                font-size:0.62em; font-weight:800; box-shadow:0 0 0 2px white;
+                transform:translate(-50%,-50%); white-space:nowrap;">W6</div>
+
+  </div>
+</div>
+
+<!-- Callout legend -->
+<div style="margin-top:4px; font-size:0.58em; display:flex; flex-direction:column; gap:2px;">
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W1</span>
+    <span style="color:#7f1d1d;">You have to tilt your head — age labels are rotated 90° across the top</span>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W2</span>
+    <span style="color:#7f1d1d;">The % panel and count panel are split apart with no visual thread between them</span>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W3</span>
+    <span style="color:#7f1d1d;">Every bar starts at a different baseline, making cross-age comparisons guesswork</span>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W4</span>
+    <span style="color:#7f1d1d;">The 65+ cohort is so large it squashes every other bar into a thin sliver</span>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W5</span>
+    <span style="color:#7f1d1d;">There are no numbers anywhere — not a single exact figure is readable</span>
+  </div>
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#b91c1c; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">W6</span>
+    <span style="color:#7f1d1d;">Light blue and light green look almost identical, especially with colour-vision differences</span>
+  </div>
+</div>
+```
+
+:::
+
+::: {.column width="58%"}
+```{=html}
+<p style="font-weight:700; color:#15803d; font-size:0.75em; margin:0 0 3px 0;">
+  Redesigned — Team 32 Butterfly Chart
+</p>
+```
+```{r}
+#| label: butterfly-before-after
+#| echo: false
+#| fig-width: 7.8
+#| fig-height: 4.8
+#| fig-align: center
+
+edu_inner_first_ba <- c(
+  "Degree",
+  "Diploma & Prof. Qual.",
+  "Post-Secondary (Non-Tertiary)",
+  "Secondary",
+  "Below Secondary"
+)
+
+butterfly_df_ba <- employment_data |>
+  pivot_longer(
+    cols      = c(`Below Secondary`, Secondary,
+                  `Post-Secondary (Non-Tertiary)`, `Diploma & Prof. Qual.`, Degree),
+    names_to  = "education",
+    values_to = "edu_share"
+  ) |>
+  mutate(
+    education = factor(education, levels = edu_inner_first_ba),
+    seg_width = emp_rate_2024 * edu_share / 100,
+    seg_width = if_else(sex == "Male", -seg_width, seg_width),
+    age_num   = as.numeric(age_group)
+  ) |>
+  arrange(sex, age_group, education) |>
+  group_by(sex, age_group) |>
+  mutate(
+    x_end   = cumsum(seg_width),
+    x_start = x_end - seg_width
+  ) |>
+  ungroup()
+
+emp_labels_ba <- employment_data |>
+  mutate(
+    age_num = as.numeric(age_group),
+    x_pos   = if_else(sex == "Male", -emp_rate_2024, emp_rate_2024),
+    hjust   = if_else(sex == "Male", 1.15, -0.15),
+    label   = paste0(emp_rate_2024, "%")
+  )
+
+ggplot() +
+  geom_vline(xintercept = c(-75,-50,-25,25,50,75), colour = "#e2e8f0",
+             linewidth = 0.4) +
+  geom_vline(xintercept = 0, colour = "#475569", linewidth = 0.7) +
+  geom_rect(
+    data = butterfly_df_ba,
+    aes(xmin = x_start, xmax = x_end,
+        ymin = age_num - 0.40, ymax = age_num + 0.40,
+        fill = education),
+    colour = "white", linewidth = 0.15
+  ) +
+  geom_text(
+    data  = emp_labels_ba,
+    aes(x = x_pos, y = age_num, label = label, hjust = hjust, colour = sex),
+    size = 2.6, fontface = "bold", family = "sans", show.legend = FALSE
+  ) +
+  scale_colour_manual(values = c(Male = "#0072B2", Female = "#CC79A7")) +
+  annotate("text", x = -48, y = 10.78, label = "\u2190  MALE",
+           hjust = 0.5, colour = "#0072B2", size = 2.8, fontface = "bold") +
+  annotate("text", x = 48, y = 10.78, label = "FEMALE  \u2192",
+           hjust = 0.5, colour = "#CC79A7", size = 2.8, fontface = "bold") +
+  annotate("label", x = -107, y = 5, label = "I1",
+           hjust = 0.5, colour = "white", size = 2.2, fontface = "bold",
+           fill = "#15803d", label.size = 0, label.padding = unit(0.2,"lines")) +
+  annotate("label", x = 0, y = 11.6, label = "I3  Degree anchored to spine",
+           hjust = 0.5, colour = "#14532d", size = 2.2, fontface = "bold",
+           fill = "#dcfce7", label.size = 0.3, label.r = unit(4,"pt"),
+           label.padding = unit(0.22,"lines")) +
+  annotate("label", x = 104, y = 10, label = "I4",
+           hjust = 0.5, colour = "white", size = 2.2, fontface = "bold",
+           fill = "#15803d", label.size = 0, label.padding = unit(0.2,"lines")) +
+  annotate("label", x = 78, y = 1, label = "I5  Exact % printed",
+           hjust = 0, colour = "#14532d", size = 2.2, fontface = "bold",
+           fill = "#dcfce7", label.size = 0.3, label.r = unit(4,"pt"),
+           label.padding = unit(0.22,"lines")) +
+  scale_fill_manual(
+    values = wong,
+    breaks = rev(edu_inner_first_ba),
+    guide  = guide_legend(
+      nrow        = 1,
+      reverse     = FALSE,
+      keywidth    = unit(0.75, "cm"),
+      keyheight   = unit(0.3, "cm"),
+      label.theme = element_text(size = 7.5, colour = "#334155"),
+      title.theme = element_text(size = 8, colour = "#1e3a8a", face = "bold")
+    )
+  ) +
+  scale_x_continuous(
+    breaks = c(-75,-50,-25,0,25,50,75),
+    labels = function(x) paste0(abs(x), "%"),
+    limits = c(-112, 112),
+    expand = expansion(add = 0)
+  ) +
+  scale_y_continuous(
+    breaks = 1:10,
+    labels = levels(employment_data$age_group),
+    expand = expansion(add = c(0.5, 1.1))
+  ) +
+  labs(
+    title    = "Employment Rate by Age Group, Gender & Education — Singapore 2024",
+    subtitle = "Bar width = employment rate · Degree-holders closest to spine · % printed at every bar tip",
+    x        = "← Employment Rate (Male)  |  Employment Rate (Female) →",
+    y        = NULL,
+    fill     = "Highest Qualification",
+    caption  = "Source: MOM Comprehensive Labour Force Survey 2024 · Tables B1 & G4"
+  ) +
+  light_theme(10) +
+  theme(
+    legend.position  = "bottom",
+    legend.direction = "horizontal",
+    legend.margin    = margin(t = 4, b = 2),
+    panel.background = element_rect(fill = "white", colour = NA),
+    panel.grid.major = element_blank(),
+    axis.text.y  = element_text(colour = "#1e293b", size = 8.5, face = "bold",
+                                hjust = 0.5, margin = margin(r = 3)),
+    axis.text.x  = element_text(colour = "#64748b", size = 8),
+    axis.title.x = element_text(colour = "#64748b", size = 8, margin = margin(t = 5)),
+    plot.title   = element_text(size = 10.5, face = "bold", colour = "#1e3a8a"),
+    plot.subtitle = element_text(size = 8, colour = "#64748b", margin = margin(t=2,b=6)),
+    plot.margin  = margin(6, 22, 4, 6)
+  )
+```
+```{=html}
+<div style="margin-top:4px; font-size:0.58em; display:grid; grid-template-columns:1fr 1fr; gap:2px 12px;">
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I1</span>
+    <span style="color:#14532d;">Age groups run as horizontal rows — no tilting required <em>(fixes W1)</em></span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I2</span>
+    <span style="color:#14532d;">One bar does the job of both panels — width shows employment, fill shows education <em>(fixes W2, W3)</em></span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I3</span>
+    <span style="color:#14532d;">Degree always sits at the spine, giving you a fixed point to compare across every row <em>(fixes W3)</em></span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I4</span>
+    <span style="color:#14532d;">Employment rate instead of raw counts — no single age group can swamp the picture <em>(fixes W4)</em></span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I5</span>
+    <span style="color:#14532d;">The exact percentage is printed at every bar tip — no guessing needed <em>(fixes W5)</em></span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; gap:6px;">
+    <span style="background:#15803d; color:white; border-radius:10px; padding:0 5px;
+                 font-weight:800; flex-shrink:0; line-height:1.6;">I6</span>
+    <span style="color:#14532d;">Wong (2011) colours stay distinguishable for every type of colour vision <em>(fixes W6)</em></span>
   </div>
 
 </div>
@@ -1145,7 +1508,7 @@ Table G4: Employed Residents by Highest Qualification Attained, Age and Sex
 FYT Consultants, *"A Data-Driven Look at Singapore's Graduate Unemployment Debate"*, September 2025  
 [fytconsultants.com](https://www.fytconsultants.com/single-post/a-data-driven-look-at-singapore-s-graduate-unemployment-debate)
 
-**Co lour palette**
+**Colour palette**
 
 B. Wong, *Points of View: Color Blindness*, Nature Methods, vol.8, no. 6, pp. 441–441, May 2011, [doi](https://doi.org/10.1038/nmeth.1618)
 
